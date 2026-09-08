@@ -1,0 +1,40 @@
+{
+  "name": "@zeropress/edge",
+  "description": "ZeroPress public Edge API for comments and newsletter integrations",
+  "version": "0.7.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "scripts": {
+    "config:init": "node scripts/compose-wrangler-config.mjs --init",
+    "config:compose": "node scripts/compose-wrangler-config.mjs --target deploy",
+    "build": "node scripts/compose-wrangler-config.mjs --target build && wrangler deploy --config .wrangler.build.jsonc --dry-run",
+    "deploy": "node scripts/compose-wrangler-config.mjs --target deploy && wrangler deploy --config .wrangler.generated.jsonc",
+    "dev": "node scripts/compose-wrangler-config.mjs --target dev && wrangler dev --config .wrangler.dev.jsonc",
+    "dev:enable-remote": "node scripts/compose-wrangler-config.mjs --target remote-dev && wrangler dev --config .wrangler.remote-dev.jsonc",
+    "test": "vitest --run",
+    "test:sql": "vitest --run test/repositories.sqlite.test.ts",
+    "test:runtime": "vitest --run test/worker.runtime.test.ts",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.test.json"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260908.1",
+    "@types/node": "26.5.0",
+    "esbuild": "0.28.2",
+    "miniflare": "5.20260908.0-alpha",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0",
+    "wrangler": "4.130.0",
+    "jsonc-parser": "3.3.1"
+  },
+  "dependencies": {
+    "jose": "6.2.12"
+  },
+  "overrides": {
+    "sharp": "0.35.4"
+  }
+}
