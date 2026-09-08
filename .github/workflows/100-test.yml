@@ -1,0 +1,75 @@
+name: Package Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Node.js ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - "22.22.0"
+          - "24"
+    env:
+      WRANGLER_SEND_METRICS: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Verify lockfile resolves every dependency from the registry
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+
+            const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
+            const offenders = Object.entries(lock.packages ?? {}).filter(([name, entry]) => (
+              name !== ""
+              && (entry.link === true || !String(entry.resolved ?? "").startsWith("https://registry.npmjs.org/"))
+            ));
+
+            if (offenders.length > 0) {
+              for (const [name, entry] of offenders) {
+                console.error(`::error::${name} resolves to ${entry.resolved ?? "a local link"} instead of a registry tarball`);
+              }
+              process.exit(1);
+            }
+            console.log(`Lockfile OK: ${Object.keys(lock.packages).length - 1} dependencies from the registry`);
+          '
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build Worker with repository installation config (dry run)
+        if: ${{ hashFiles('wrangler.override.jsonc') != '' }}
+        run: npm run build
+
+      - name: Build Worker with package CI fixture (dry run)
+        if: ${{ hashFiles('wrangler.override.jsonc') == '' }}
+        env:
+          ZEROPRESS_EDGE_WRANGLER_OVERRIDE: scripts/fixtures/wrangler.override.ci.jsonc
+        run: npm run build
