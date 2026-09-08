@@ -1,0 +1,1 @@
+export const ZP_NATIVE_PUBLIC_ID_BASE = 100_000_000_000;
