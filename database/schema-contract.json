@@ -1,0 +1,30 @@
+{
+  "contract_version": 1,
+  "schema_version": 1,
+  "minimum_supported_schema_version": 1,
+  "state_table": "zeropress_edge_schema_state",
+  "supported_schema_catalogs": [
+    {
+      "schema_version": 1,
+      "sha256": "d8068600f666766195aff82abaeae01413e6ed44a800a03444699cbcbed964f6"
+    }
+  ],
+  "install_artifacts": [
+    {
+      "id": "edge_install_baseline_v1",
+      "file": "install/001_edge_baseline.sql",
+      "sha256": "5d06b8642538fcfdc298a9b55c557f7618f0a58c22d20286250333fb9a589d55"
+    },
+    {
+      "id": "edge_install_seed_v1",
+      "file": "install/002_edge_seed.sql",
+      "sha256": "364c21ac384a9bc955599e63fbf87d6b164bf4b9cde5ce8e80da24fb60934bd2"
+    }
+  ],
+  "uninstall_artifact": {
+    "id": "edge_uninstall_v1",
+    "file": "operations/001_uninstall.sql",
+    "sha256": "fdb1aa287dc429485b9122da964d651a4be0f9ee2b87ad3c3bc1326f5ac40323"
+  },
+  "upgrade_artifacts": []
+}
