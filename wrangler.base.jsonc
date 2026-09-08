@@ -1,0 +1,121 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // ZeroPress owns this base contract. Installation-specific resource targets
+  // belong in wrangler.override.jsonc and are merged into a generated config.
+  "name": "zeropress-edge",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-07",
+  "workers_dev": true,
+  "preview_urls": false,
+  // Plain variables are managed in the Cloudflare dashboard. Keeping them out
+  // of generated configs prevents a later deploy from replacing dashboard state.
+  "keep_vars": true,
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  },
+  "d1_databases": [
+    {
+      "binding": "EDGE_DB",
+      "database_name": "zeropress-edge-build",
+      "remote": false
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "EDGE_KV",
+      "id": "00000000000000000000000000000000",
+      "remote": false
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "MAIL_QUEUE",
+        "queue": "zeropress-edge-build-mail",
+        "remote": false
+      }
+    ]
+  },
+  "triggers": {
+    "crons": [
+      "17 19 * * *"
+    ]
+  },
+  "ratelimits": [
+    {
+      "name": "COMMENT_READ_RATE_LIMITER",
+      "namespace_id": "900001",
+      "simple": {
+        "limit": 120,
+        "period": 60
+      }
+    },
+    {
+      "name": "COMMENT_WRITE_RATE_LIMITER",
+      "namespace_id": "900002",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "COMMENT_CHALLENGE_RATE_LIMITER",
+      "namespace_id": "900003",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "name": "NEWSLETTER_READ_RATE_LIMITER",
+      "namespace_id": "900004",
+      "simple": {
+        "limit": 120,
+        "period": 60
+      }
+    },
+    {
+      "name": "NEWSLETTER_SUBSCRIBE_RATE_LIMITER",
+      "namespace_id": "900005",
+      "simple": {
+        "limit": 3,
+        "period": 60
+      }
+    },
+    {
+      "name": "NEWSLETTER_CHALLENGE_RATE_LIMITER",
+      "namespace_id": "900006",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "name": "FORM_READ_RATE_LIMITER",
+      "namespace_id": "900007",
+      "simple": {
+        "limit": 120,
+        "period": 60
+      }
+    },
+    {
+      "name": "FORM_SUBMIT_RATE_LIMITER",
+      "namespace_id": "900008",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "FORM_CHALLENGE_RATE_LIMITER",
+      "namespace_id": "900009",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    }
+  ]
+}
