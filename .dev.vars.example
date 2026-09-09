@@ -1,0 +1,6 @@
+# Local development values only.
+ALLOWED_ORIGINS=http://localhost:3000
+COMMENTS_ENABLED=true
+NEWSLETTER_ENABLED=false
+FORMS_ENABLED=false
+EDGE_MAINTENANCE_MODE=false
