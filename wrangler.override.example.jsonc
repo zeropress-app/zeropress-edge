@@ -1,8 +1,5 @@
 {
-  // Config-consuming npm commands copy this example when the default
-  // wrangler.override.jsonc is missing, then validate its installation values.
-  // Replace every placeholder and track the reviewed copy in the private
-  // deployment repository.
+  // Replace every placeholder with your installation values.
   "name": "<your-edge-worker-name>",
   "d1_databases": [
     {
