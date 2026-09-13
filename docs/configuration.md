@@ -88,7 +88,15 @@ manager. Studio's own secrets and comment request-token keys are separate.
 Subsequent `npm run deploy` executions preserve Dashboard values.
 `wrangler.jsonc` uses `keep_vars: true` and contains no `vars` object. Keep defaults
 in runtime code; Wrangler `vars` and deployment `--var` arguments write remote
-values. For local development, use `.dev.vars` or `.env`.
+values.
+
+For local development, `npm run dev` creates `.dev.vars` only when `.dev.vars`,
+`.env`, and `.env.local` are all absent. It allows `http://localhost:3000`, enables
+Comments, leaves the other gates `false`, and generates independent 64-character
+hex values for `EDGE_TOKEN_SIGNING_SECRET` and `IP_HASH_SECRET`. Existing files
+are preserved without filling missing values. Edit the local file to customize
+it or add `TURNSTILE_SECRET_KEY`. These files remain excluded from Git; build and
+deployment do not generate them.
 
 ## Runtime settings
 

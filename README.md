@@ -60,8 +60,9 @@ npm run build
 
 Runtime tests require a local process and loopback server.
 
-Keep local variables and secrets in `.dev.vars` or `.env`. Remote configuration
-and deployment commands are described in the [configuration reference](docs/configuration.md).
+`npm run dev` initializes local variables and secrets when needed. See the
+[configuration reference](docs/configuration.md#worker-variables-and-secrets)
+for local defaults and deployed settings.
 
 ## Related projects
 

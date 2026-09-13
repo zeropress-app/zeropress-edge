@@ -12,6 +12,7 @@
   "scripts": {
     "build": "wrangler deploy --config wrangler.jsonc --dry-run",
     "deploy": "wrangler deploy --config wrangler.jsonc",
+    "predev": "node scripts/init-dev-vars.mjs",
     "dev": "wrangler dev --config wrangler.jsonc",
     "test": "vitest --run",
     "test:sql": "vitest --run test/repositories.sqlite.test.ts",
