@@ -16,7 +16,7 @@ import { publicBindings, seedPublicFixtures } from './fixtures';
 type Bindings = NonNullable<WorkerOptions['config']['env']>;
 type RuntimeRequestInit = { method?: string; body?: string; headers?: Record<string, string> };
 const { compatibility_date: compatibilityDate } = parse(readFileSync(
-  new URL('../../wrangler.base.jsonc', import.meta.url), 'utf8',
+  new URL('../../wrangler.jsonc', import.meta.url), 'utf8',
 )) as { compatibility_date: string };
 let bundledWorker: Promise<string> | undefined;
 let loopbackAvailable: Promise<void> | undefined;
@@ -83,8 +83,8 @@ export async function createLocalWorker(options: {
     });
   }
 
-  // No installation config, .dev.vars, credentials, shared development storage or
-  // remote resources are loaded. Even accidental Worker fetches are blocked.
+  // Only the compatibility date comes from wrangler.jsonc. Bindings and storage
+  // are disposable fixtures; credentials and external requests are excluded.
   const dev = {
     rootPath: directory,
     unsafeRegisterWorker: false,

@@ -1,14 +1,11 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  // ZeroPress owns this base contract. Installation-specific resource targets
-  // belong in wrangler.override.jsonc and are merged into a generated config.
   "name": "zeropress-edge",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-07",
   "workers_dev": true,
   "preview_urls": false,
-  // Plain variables are managed in the Cloudflare dashboard. Keeping them out
-  // of generated configs prevents a later deploy from replacing dashboard state.
+  // Manage variables and secrets in the Cloudflare Dashboard; keep vars absent.
   "keep_vars": true,
   "observability": {
     "logs": {
@@ -19,23 +16,20 @@
   "d1_databases": [
     {
       "binding": "EDGE_DB",
-      "database_name": "zeropress-edge-build",
-      "remote": false
+      "database_name": "zeropress-edge-d1"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "EDGE_KV",
-      "id": "00000000000000000000000000000000",
-      "remote": false
+      "id": "00000000000000000000000000000000"
     }
   ],
   "queues": {
     "producers": [
       {
         "binding": "MAIL_QUEUE",
-        "queue": "zeropress-edge-build-mail",
-        "remote": false
+        "queue": "zeropress-edge-mail-queue"
       }
     ]
   },

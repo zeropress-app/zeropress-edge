@@ -10,12 +10,9 @@
     "node": ">=22.22.0"
   },
   "scripts": {
-    "config:init": "node scripts/compose-wrangler-config.mjs --init",
-    "config:compose": "node scripts/compose-wrangler-config.mjs --target deploy",
-    "build": "node scripts/compose-wrangler-config.mjs --target build && wrangler deploy --config .wrangler.build.jsonc --dry-run",
-    "deploy": "node scripts/compose-wrangler-config.mjs --target deploy && wrangler deploy --config .wrangler.generated.jsonc",
-    "dev": "node scripts/compose-wrangler-config.mjs --target dev && wrangler dev --config .wrangler.dev.jsonc",
-    "dev:enable-remote": "node scripts/compose-wrangler-config.mjs --target remote-dev && wrangler dev --config .wrangler.remote-dev.jsonc",
+    "build": "wrangler deploy --config wrangler.jsonc --dry-run",
+    "deploy": "wrangler deploy --config wrangler.jsonc",
+    "dev": "wrangler dev --config wrangler.jsonc",
     "test": "vitest --run",
     "test:sql": "vitest --run test/repositories.sqlite.test.ts",
     "test:runtime": "vitest --run test/worker.runtime.test.ts",

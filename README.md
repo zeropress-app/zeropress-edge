@@ -21,8 +21,7 @@ a shared Queue for mail delivery through Studio.
 ## Getting started
 
 Follow the [installation guide](docs/getting-started.md) to connect Cloudflare
-resources, prepare the Worker configuration, initialize Studio, and enable the
-selected APIs. Node.js 22.22.0 or newer and npm are required.
+resources, deploy the Worker, initialize Studio, and enable the selected APIs.
 
 The guide covers both fresh installations and existing Edge databases. Studio
 provides database installation and maintenance; deploying the Worker does not
@@ -32,7 +31,7 @@ initialize the database.
 
 | Document | Use it for |
 | --- | --- |
-| [Configuration](docs/configuration.md) | Wrangler overrides, bindings, variables, secrets, and runtime settings |
+| [Configuration](docs/configuration.md) | Wrangler configuration, bindings, variables, secrets, and runtime settings |
 | [Common API rules](docs/api/common.md) | Response format, CORS, write verification, rate limits, and shared errors |
 | [Comments API](docs/api/comments.md) | Reading and posting comments, request tokens, and visitor authentication |
 | [Newsletter API](docs/api/newsletters.md) | Signup, confirmation, unsubscribe, and delivery behavior |
@@ -42,7 +41,7 @@ initialize the database.
 
 ## Development
 
-From the Edge repository:
+Use Node.js 22.22.0 or newer and npm. From the Edge repository:
 
 ```sh
 npm ci
@@ -51,20 +50,15 @@ npm run typecheck
 npm run build
 ```
 
-`build` is a Wrangler dry run. If the default `wrangler.override.jsonc` is
-missing, it is created from the example and validation stops until you fill in
-the installation values. See [configuration](docs/configuration.md#wrangler-configuration).
+`build` is a Wrangler dry run using [`wrangler.jsonc`](wrangler.jsonc).
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Run locally using the installation configuration |
-| `npm run dev:enable-remote` | Run with bindings explicitly configured as remote |
+| `npm run dev` | Run the Worker locally using `wrangler.jsonc` |
 | `npm run test:sql` | Test repositories against in-memory SQLite |
 | `npm run test:runtime` | Test the Worker with disposable local D1, KV, and Queue resources |
 
-Runtime tests require a local process and loopback server. Use the npm commands
-for development and deployment; bare `wrangler dev` and `wrangler deploy` are
-blocked. Remote development can read or change the selected Cloudflare resources.
+Runtime tests require a local process and loopback server.
 
 Keep local variables and secrets in `.dev.vars` or `.env`. Remote configuration
 and deployment commands are described in the [configuration reference](docs/configuration.md).

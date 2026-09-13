@@ -8,25 +8,17 @@ steps; Studio provides database installation and maintenance.
 
 You need:
 
-- Node.js 22.22.0 or newer and npm.
 - A Cloudflare account with Workers, D1, KV, and Queues for the selected features.
 - A [Studio](https://github.com/zeropress-app/zeropress-studio) release compatible
   with Edge schema version `1` and mail contract version `1`. Package Semver
   numbers do not need to match; check the [schema contract](../database/schema-contract.json).
-- The public site's Origin and the Edge Worker address, for example
-  `https://blog.example` and `https://edge.example`.
-
-Obtain the selected release from the
-[Edge repository](https://github.com/zeropress-app/zeropress-edge). From that
-repository, install dependencies:
-
-```sh
-npm ci
-```
+- The public site's Origin, for example `https://blog.example`.
+- Node.js 22.22.0 or newer and npm for local development or CLI deployment.
 
 ## 2. Prepare and connect the Cloudflare resources
 
-Create or select these resources in the same Cloudflare account:
+Select or create these resources during deployment in step 3, in the same
+Cloudflare account as Studio:
 
 | Resource | Edge Worker | Studio Worker |
 | --- | --- | --- |
@@ -35,8 +27,8 @@ Create or select these resources in the same Cloudflare account:
 | Mail queue | Producer `MAIL_QUEUE` | Producer `MAIL_QUEUE` and a consumer for the same queue |
 | Studio database and KV | Not used | Separate `DB` and `KV` bindings |
 
-Edge and Studio must use the same `EDGE_DB.database_name`; matching the binding
-name alone is insufficient. Keep Edge's database separate from Studio's `DB`.
+Edge and Studio must use the same D1 database; matching the binding name alone
+is insufficient. Keep Edge's database separate from Studio's `DB`.
 Although KV is optional for the Edge runtime, fresh Studio installation requires
 `EDGE_KV` to initialize an empty Edge database.
 
@@ -44,29 +36,22 @@ Studio consumes mail jobs. A comments-only installation may omit the mail queue;
 Newsletter signup and Form notifications require the matching Studio consumer
 and mail configuration.
 
-Run the configuration-aware build:
-
-```sh
-npm run build
-```
-
-If `wrangler.override.jsonc` is missing, this creates it from the
-[example](../wrangler.override.example.jsonc) and stops on incomplete values.
-Set the Worker name, resource names/IDs, rate-limit namespace IDs, and an explicit
-`remote: false` for each configured D1, KV, and Queue binding for local development.
-Remove unused optional bindings as described in
-[Configuration](configuration.md#wrangler-configuration).
-
-Review and track the completed override in the private deployment repository,
-then rerun `npm run build`. It validates configuration and performs a dry run
-without uploading the Worker. The configuration reference also covers custom
-override paths, remote development, and namespace choices.
-
 ## 3. Deploy and configure the Worker
 
-Authenticate Wrangler to the intended Cloudflare account, then deploy:
+Open [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/zeropress-app/zeropress-edge),
+choose the destination repository and Worker name, and select the resources from
+step 2. Keep the detected build command `npm run build` and deploy command
+`npm run deploy`, then select **Deploy**. Cloudflare saves the selected resource
+names and IDs in the new repository's `wrangler.jsonc`.
+
+For CLI deployment instead, obtain the source from the
+[Edge repository](https://github.com/zeropress-app/zeropress-edge), configure the
+Worker name and resource identities in [`wrangler.jsonc`](../wrangler.jsonc),
+and authenticate Wrangler to the intended Cloudflare account. Then run:
 
 ```sh
+npm ci
+npm run build
 npm run deploy
 ```
 
@@ -154,8 +139,6 @@ Use the [Comments](api/comments.md), [Newsletter](api/newsletters.md), and
 
 | Result | What to check |
 | --- | --- |
-| Installation configuration is incomplete | Placeholder values, optional binding choices, and explicit `remote` booleans in the override |
-| A selected override path is missing | `ZEROPRESS_EDGE_WRANGLER_OVERRIDE` and the file at the reported path |
 | `503 EDGE_MAINTENANCE` | The deployed maintenance gate is `true` |
 | `503 EDGE_CONFIGURATION_ERROR` | Exact `true`/`false` gate values |
 | `503 EDGE_DATABASE_NOT_AVAILABLE` | Shared database identity, compatible schema, and lifecycle state in Studio |

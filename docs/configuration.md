@@ -5,53 +5,27 @@ reference covers configuration choices and their runtime effects.
 
 ## Wrangler configuration
 
-[`wrangler.base.jsonc`](../wrangler.base.jsonc) defines the Worker entry point,
-compatibility date, binding names, quota policy, and retention schedule.
-`wrangler.override.jsonc` supplies installation-specific Worker and resource
-names, namespace IDs, and development binding choices.
+[`wrangler.jsonc`](../wrangler.jsonc) defines the Worker entry point,
+compatibility date, resource bindings, quota policy, and retention schedule.
+Both npm commands and Wrangler read this file directly.
 
-Commands that consume configuration create a missing default override from
-[`wrangler.override.example.jsonc`](../wrangler.override.example.jsonc), then
-validate it. Replace every placeholder and rerun the command. Incomplete values
-stop configuration generation and Wrangler execution; existing files are never
-overwritten. Track the reviewed override in the private deployment repository.
-
-`npm run config:init` can create the default file in advance. It requires an
-absent default file and an unset `ZEROPRESS_EDGE_WRANGLER_OVERRIDE`.
-
-Set `ZEROPRESS_EDGE_WRANGLER_OVERRIDE` to select another reviewed file. Relative
-paths resolve from the command's working directory. An explicitly selected file
-must exist, including when it names the default path; a missing file reports its
-path and stops without creating a replacement.
-
-The following commands compose and validate a fresh generated file:
+Deploy to Cloudflare writes the selected Worker and resource names/IDs into this
+file in the installation repository. For CLI deployment, set these values in the
+same file before deploying. Edit or remove resource bindings there.
 
 | Command | Behavior |
 | --- | --- |
-| `npm run config:compose` | Generate deployment configuration without deploying |
 | `npm run build` | Build with Wrangler's deployment dry run |
 | `npm run deploy` | Deploy, preserving Dashboard variables |
-| `npm run dev` | Use installation identities and force supported bindings local |
-| `npm run dev:enable-remote` | Honor explicit `remote: true` choices; require at least one remote binding |
+| `npm run dev` | Run locally, honoring each binding's `remote` setting |
 
-Configure `EDGE_DB.database_name` explicitly. Edge and Studio must use the same
-database name in the same Cloudflare account; matching binding names alone is
-insufficient. The composer does not require a second D1 identifier.
+Edge and Studio must bind `EDGE_DB` to the same D1 database in the same Cloudflare
+account; matching binding names alone is insufficient. Retain the `database_id`
+and other resource identities written by Cloudflare.
 
-For each configured D1, KV, or Queue binding, supply an exact `remote: true` or
-`remote: false`. Build and deployment output omit these development-only fields.
-Remote development can read or change real resources.
-
-Optional KV, Queue, and rate-limit bindings must be explicitly configured or
-removed. An empty collection removes all bindings in that collection.
-
-Binding arrays merge by `binding`, or by `name` for rate limiters. Duplicate keys,
-incomplete choices, changes to base-owned build fields or quota policy, and
-Wrangler migration-directory configuration are rejected. Review generated files
-through their source inputs rather than editing the outputs.
-
-Resource binding changes belong in the override. Bare `wrangler dev` and
-`wrangler deploy` are blocked; use the npm commands above.
+The supplied D1, KV, and Queue bindings use `remote: false` for local development.
+Setting a binding to `remote: true` lets development read or change that real
+resource. These flags do not change the resources used by a deployed Worker.
 
 ## Worker bindings
 
@@ -75,9 +49,8 @@ All rate-limit bindings are optional. Omitting one removes its corresponding
 Worker quota. A configured but failing limiter returns an availability error.
 See [API rate limits](api/common.md#rate-limits) for counter behavior.
 
-The base configuration supplies quotas; each installation supplies namespace
-IDs. Use distinct IDs where quotas must be independent of other installations
-in the account. Quota changes belong in the base configuration.
+Configure quotas and namespace IDs in `wrangler.jsonc`. Use distinct IDs where
+quotas must be independent of other installations in the account.
 
 ## Worker variables and secrets
 
@@ -112,8 +85,8 @@ openssl rand -hex 32
 Save each output as its Secret entry above and keep a copy in your secret
 manager. Studio's own secrets and comment request-token keys are separate.
 
-Subsequent `npm run deploy` executions preserve Dashboard values. Generated
-configuration uses `keep_vars: true` and contains no `vars` object. Keep defaults
+Subsequent `npm run deploy` executions preserve Dashboard values.
+`wrangler.jsonc` uses `keep_vars: true` and contains no `vars` object. Keep defaults
 in runtime code; Wrangler `vars` and deployment `--var` arguments write remote
 values. For local development, use `.dev.vars` or `.env`.
 
@@ -165,12 +138,8 @@ compatible. Studio defers queue batches while the Edge database is not current
 
 ## CI and Workers Builds
 
-Public package CI can select the synthetic
-[`scripts/fixtures/wrangler.override.ci.jsonc`](../scripts/fixtures/wrangler.override.ci.jsonc)
-through `ZEROPRESS_EDGE_WRANGLER_OVERRIDE` for build verification. This fixture
-is not a deployment configuration.
+CI runs `npm run build` against `wrangler.jsonc` as a dry run.
 
-For Cloudflare Workers Builds, leave the optional build command empty and set
-the deploy command to `npm run deploy`. Connect a private branch containing the
-reviewed installation override. See Cloudflare's
+For Cloudflare Workers Builds, keep the detected build command `npm run build`
+and deploy command `npm run deploy`. See Cloudflare's
 [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).

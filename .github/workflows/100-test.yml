@@ -64,12 +64,5 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build Worker with repository installation config (dry run)
-        if: ${{ hashFiles('wrangler.override.jsonc') != '' }}
-        run: npm run build
-
-      - name: Build Worker with package CI fixture (dry run)
-        if: ${{ hashFiles('wrangler.override.jsonc') == '' }}
-        env:
-          ZEROPRESS_EDGE_WRANGLER_OVERRIDE: scripts/fixtures/wrangler.override.ci.jsonc
+      - name: Build Worker (dry run)
         run: npm run build
