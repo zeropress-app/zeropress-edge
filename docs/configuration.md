@@ -10,20 +10,37 @@ compatibility date, resource bindings, quota policy, and retention schedule.
 Both npm commands and Wrangler read this file directly.
 
 Deploy to Cloudflare writes the selected Worker and resource names/IDs into this
-file in the installation repository. For CLI deployment, set these values in the
-same file before deploying. Edit or remove resource bindings there.
+file in the installation repository. The public template omits D1 and KV IDs so
+Wrangler can provision resources. To connect existing resources, set
+`database_id` and KV `id` explicitly. Edit or remove resource bindings here.
 
 | Command | Behavior |
 | --- | --- |
-| `npm run build` | Build with Wrangler's deployment dry run |
-| `npm run deploy` | Deploy, preserving Dashboard variables |
+| `npm run build` | Show the target Worker and build with Wrangler's deployment dry run |
+| `npm run deploy` | Show the target Worker and deploy current source, preserving Dashboard variables |
 | `npm run dev` | Run locally, honoring each binding's `remote` setting |
+| `npm run format:wrangler` | Format the configuration to match Wrangler's resource-ID write-back |
+| `npm run format:wrangler:check` | Check formatting without changing the file |
 
-Edge and Studio must bind `EDGE_DB` to the same D1 database in the same Cloudflare
-account; matching binding names alone is insufficient. Retain the `database_id`
-and other resource identities written by Cloudflare.
+Build and deploy accept Wrangler options such as `--name` and `--env` after
+`--`. The displayed name includes the selected environment and Cloudflare Builds'
+`WRANGLER_CI_OVERRIDE_NAME`, which takes precedence over `--name` and the config.
+These commands use the root `wrangler.jsonc`; run Wrangler directly to use a
+different config or working directory. Deploy bundles current source again;
+it does not reuse a previous dry-run output.
 
-The supplied D1, KV, and Queue bindings use `remote: false` for local development.
+When IDs are omitted, subsequent deploys can reuse the existing Worker's
+bindings. To recreate a deleted Worker with retained KV, set the namespace's
+`id` first; otherwise automatic creation can fail because its name already
+exists. Find the ID in the Dashboard or with `npx wrangler kv namespace list`.
+Retain provisioned IDs when Wrangler writes them back. Git-connected builds do
+not commit these IDs to the repository.
+
+Edge and Studio must share the actual resources listed in
+[Getting Started](getting-started.md#2-prepare-and-connect-the-cloudflare-resources).
+Matching binding names alone does not connect them.
+
+The supplied D1, KV, and Queue bindings use local resources by default.
 Setting a binding to `remote: true` lets development read or change that real
 resource. These flags do not change the resources used by a deployed Worker.
 
@@ -146,7 +163,7 @@ compatible. Studio defers queue batches while the Edge database is not current
 
 ## CI and Workers Builds
 
-CI runs `npm run build` against `wrangler.jsonc` as a dry run.
+CI checks Wrangler formatting, tests, types, and `npm run build` as a dry run.
 
 For Cloudflare Workers Builds, keep the detected build command `npm run build`
 and deploy command `npm run deploy`. See Cloudflare's

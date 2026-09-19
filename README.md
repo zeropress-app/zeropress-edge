@@ -45,6 +45,7 @@ Use Node.js 22.22.0 or newer and npm. From the Edge repository:
 
 ```sh
 npm ci
+npm run format:wrangler:check
 npm test
 npm run typecheck
 npm run build
@@ -55,6 +56,7 @@ npm run build
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Run the Worker locally using `wrangler.jsonc` |
+| `npm run format:wrangler` | Format `wrangler.jsonc` to match Wrangler's resource-ID write-back |
 | `npm run test:sql` | Test repositories against in-memory SQLite |
 | `npm run test:runtime` | Test the Worker with disposable local D1, KV, and Queue resources |
 

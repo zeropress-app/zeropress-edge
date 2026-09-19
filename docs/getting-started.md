@@ -27,8 +27,10 @@ Cloudflare account as Studio:
 | Mail queue | Producer `MAIL_QUEUE` | Producer `MAIL_QUEUE` and a consumer for the same queue |
 | Studio database and KV | Not used | Separate `DB` and `KV` bindings |
 
-Edge and Studio must use the same D1 database; matching the binding name alone
-is insufficient. Keep Edge's database separate from Studio's `DB`.
+Edge and Studio must use the same actual Edge D1 database, KV namespace, and
+mail queue. When deploying the second Worker, select the first Worker's shared
+resources; automatically generated KV names differ between Workers. Keep Edge's
+database and KV separate from Studio's `DB` and `KV`.
 Although KV is optional for the Edge runtime, fresh Studio installation requires
 `EDGE_KV` to initialize an empty Edge database.
 
@@ -46,8 +48,11 @@ names and IDs in the new repository's `wrangler.jsonc`.
 
 For CLI deployment instead, obtain the source from the
 [Edge repository](https://github.com/zeropress-app/zeropress-edge), configure the
-Worker name and resource identities in [`wrangler.jsonc`](../wrangler.jsonc),
-and authenticate Wrangler to the intended Cloudflare account. Then run:
+Worker name in [`wrangler.jsonc`](../wrangler.jsonc), and authenticate Wrangler to
+the intended Cloudflare account. Wrangler can provision resources when IDs are
+omitted. If Studio already has the shared resources, set their IDs and Queue
+name before deploying; see [Wrangler configuration](configuration.md#wrangler-configuration).
+Then run:
 
 ```sh
 npm ci

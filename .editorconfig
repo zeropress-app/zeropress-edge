@@ -1,0 +1,5 @@
+[wrangler.jsonc]
+indent_style = tab
+indent_size = tab
+end_of_line = lf
+insert_final_newline = false

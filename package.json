@@ -10,8 +10,10 @@
     "node": ">=22.22.0"
   },
   "scripts": {
-    "build": "wrangler deploy --config wrangler.jsonc --dry-run",
-    "deploy": "wrangler deploy --config wrangler.jsonc",
+    "build": "node scripts/build-deploy.mjs build",
+    "deploy": "node scripts/build-deploy.mjs deploy",
+    "format:wrangler": "node scripts/format-wrangler.mjs",
+    "format:wrangler:check": "node scripts/format-wrangler.mjs --check",
     "predev": "node scripts/init-dev-vars.mjs",
     "dev": "wrangler dev --config wrangler.jsonc",
     "test": "vitest --run",

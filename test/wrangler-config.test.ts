@@ -39,16 +39,23 @@ function createFixture() {
     scripts: packageJson.scripts,
   }));
   mkdirSync(join(directory, 'scripts'));
-  copyFileSync(
-    join(projectRoot, 'scripts/init-dev-vars.mjs'),
-    join(directory, 'scripts/init-dev-vars.mjs'),
-  );
+  for (const script of ['init-dev-vars.mjs', 'build-deploy.mjs']) {
+    copyFileSync(join(projectRoot, 'scripts', script), join(directory, 'scripts', script));
+  }
 
   // Exercise npm scripts and hooks, replacing only Wrangler so no Worker
   // starts, uploads, or accesses Cloudflare resources.
   const bin = join(directory, 'node_modules', '.bin');
   mkdirSync(bin, { recursive: true });
-  writeFileSync(join(bin, 'wrangler'), [
+  const wrangler = join(directory, 'node_modules', 'wrangler');
+  mkdirSync(join(wrangler, 'bin'), { recursive: true });
+  writeFileSync(join(wrangler, 'package.json'), JSON.stringify({ main: 'index.cjs' }));
+  writeFileSync(join(wrangler, 'index.cjs'), [
+    `const wrangler = require(${JSON.stringify(fileURLToPath(import.meta.resolve('wrangler')))});`,
+    'exports.unstable_readConfig = wrangler.unstable_readConfig;',
+    'exports.unstable_getVarsForDev = wrangler.unstable_getVarsForDev;',
+  ].join('\n'));
+  const mock = [
     '#!/usr/bin/env node',
     'const fs = require("node:fs");',
     'const path = require("node:path");',
@@ -58,15 +65,27 @@ function createFixture() {
     'const config = JSON.parse(fs.readFileSync(configPath, "utf8"));',
     'const localVars = fs.existsSync(".dev.vars") ? fs.readFileSync(".dev.vars", "utf8") : null;',
     'fs.writeFileSync("invocation.json", JSON.stringify({ args, configPath, config, localVars }));',
-  ].join('\n'), { mode: 0o755 });
+    'process.exitCode = Number(process.env.TEST_WRANGLER_EXIT_CODE || 0);',
+  ].join('\n');
+  writeFileSync(join(bin, 'wrangler'), mock, { mode: 0o755 });
+  writeFileSync(join(wrangler, 'bin', 'wrangler.js'), mock);
 
   return { directory, configPath, contents, installed };
 }
 
-function runCommand(directory: string, command: string) {
-  const result = spawnSync('npm', ['run', '--silent', command], {
+function executeCommand(directory: string, command: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
+  return spawnSync('npm', ['run', '--silent', command, '--', ...args], {
     cwd: directory, encoding: 'utf8', timeout: 10_000,
+    env: {
+      ...process.env, CLOUDFLARE_ENV: undefined, WRANGLER_CI_OVERRIDE_NAME: undefined,
+      WRANGLER_SEND_METRICS: 'false', WRANGLER_LOG_PATH: join(directory, 'wrangler.log'),
+      FORCE_COLOR: undefined, NO_COLOR: '1', ...env,
+    },
   });
+}
+
+function runCommand(directory: string, command: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
+  const result = executeCommand(directory, command, args, env);
   expect(result.status, result.stderr || result.error?.message).toBe(0);
   return {
     invocation: JSON.parse(readFileSync(join(directory, 'invocation.json'), 'utf8')),
@@ -82,14 +101,145 @@ describe('Cloudflare deployment configuration', () => {
 
   it.each(['build', 'deploy'])('%s uses the resource identities written by Cloudflare', (command) => {
     const { directory, configPath, contents, installed } = createFixture();
-    const { invocation } = runCommand(directory, command);
+    const { invocation, output } = runCommand(directory, command);
     expect(invocation.configPath).toBe(configPath);
     expect(invocation.config).toEqual(installed);
     expect(invocation.args[0]).toBe('deploy');
     expect(invocation.args.includes('--dry-run')).toBe(command === 'build');
+    expect(output).toContain(`${command === 'build' ? 'Validating deployment for' : 'Deploying'} Worker ${installed.name}.`);
     expect(readFileSync(configPath, 'utf8')).toBe(contents);
     expect(invocation.localVars).toBeNull();
     expect(existsSync(join(directory, '.dev.vars'))).toBe(false);
+  });
+
+  it.each([
+    { args: ['--name', 'cli-edge'], env: {}, name: 'cli-edge' },
+    { args: ['--env', 'staging'], env: {}, name: 'environment-edge' },
+    { args: ['-e', 'staging', '--name=cli-edge'], env: {}, name: 'cli-edge' },
+    { args: [], env: { CLOUDFLARE_ENV: 'staging' }, name: 'environment-edge' },
+    { args: ['--env=staging', '--name', 'cli-edge'], env: { WRANGLER_CI_OVERRIDE_NAME: 'builds-edge' }, name: 'builds-edge' },
+  ])('shows the effective target for $args and $env', ({ args, env, name }) => {
+    const { directory, configPath, installed } = createFixture();
+    writeFileSync(configPath, JSON.stringify({ ...installed, env: { staging: { ...installed, name: 'environment-edge' } } }));
+    const { invocation, output } = runCommand(directory, 'deploy', args, env);
+    expect(output).toContain(`Deploying Worker ${name}.`);
+    expect(invocation.args).toEqual(['deploy', '--config', 'wrangler.jsonc', ...args]);
+  });
+
+  it('uses Wrangler environment-name suffixes when no environment name is set', () => {
+    const { directory, configPath, installed } = createFixture();
+    const { name: _name, ...environment } = installed;
+    writeFileSync(configPath, JSON.stringify({ ...installed, env: { staging: environment } }));
+    expect(runCommand(directory, 'build', ['--env', 'staging']).output)
+      .toContain(`Validating deployment for Worker ${installed.name}-staging.`);
+  });
+
+  it('uses Wrangler dotenv expansion and file precedence for target selection', () => {
+    const { directory } = createFixture();
+    writeFileSync(join(directory, '.env'), 'TARGET_PREFIX=base\nWRANGLER_CI_OVERRIDE_NAME=${TARGET_PREFIX}-edge\n');
+    writeFileSync(join(directory, '.env.local'), 'TARGET_PREFIX=local\nWRANGLER_CI_OVERRIDE_NAME=${TARGET_PREFIX}-edge\n');
+    writeFileSync(join(directory, '.dev.vars'), 'WRANGLER_CI_OVERRIDE_NAME=development-only-edge\n');
+    expect(runCommand(directory, 'deploy').output).toContain('Deploying Worker local-edge.');
+    expect(runCommand(directory, 'deploy', [], { WRANGLER_CI_OVERRIDE_NAME: 'ci-edge' }).output)
+      .toContain('Deploying Worker ci-edge.');
+
+    writeFileSync(join(directory, '.env.preview'), 'WRANGLER_CI_OVERRIDE_NAME=preview-edge\n');
+    expect(runCommand(directory, 'build', ['--env', 'preview']).output)
+      .toContain('Validating deployment for Worker preview-edge.');
+  });
+
+  it.each([
+    ['--env-file', 'first.env', '--envFile=last.env'],
+    ['--env-file', 'first.env', 'last.env'],
+  ])('reads explicit environment files %j when dev-variable loading is disabled', (...args) => {
+    const { directory } = createFixture();
+    writeFileSync(join(directory, 'first.env'), 'WRANGLER_CI_OVERRIDE_NAME=first-edge\n');
+    writeFileSync(join(directory, 'last.env'), 'WRANGLER_CI_OVERRIDE_NAME=last-edge\n');
+    const { output } = runCommand(directory, 'deploy', args, {
+      CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false',
+    });
+    expect(output).toContain('Deploying Worker last-edge.');
+  });
+
+  it('resolves an environment selected in .env while CLI selection takes precedence', () => {
+    const { directory, configPath, installed } = createFixture();
+    writeFileSync(configPath, JSON.stringify({
+      ...installed, env: {
+        staging: { ...installed, name: 'staging-edge' },
+        preview: { ...installed, name: 'preview-edge' },
+      },
+    }));
+    writeFileSync(join(directory, '.env'), 'CLOUDFLARE_ENV=staging\n');
+    expect(runCommand(directory, 'deploy').output).toContain('Deploying Worker staging-edge.');
+    expect(runCommand(directory, 'deploy', ['--env=preview']).output).toContain('Deploying Worker preview-edge.');
+  });
+
+  it('honors a negated deployment dry run in the displayed action', () => {
+    const { directory } = createFixture();
+    expect(runCommand(directory, 'deploy', ['--dry-run', '--no-dry-run']).output)
+      .toContain('Deploying Worker installed-edge-worker.');
+  });
+
+  it('passes deployment options and Wrangler failures through', () => {
+    const { directory } = createFixture();
+    const result = executeCommand(directory, 'deploy', ['--dry-run', '--outdir', 'output'], { TEST_WRANGLER_EXIT_CODE: '7' });
+    expect(result.status).toBe(7);
+    expect(result.stdout).toContain('Validating deployment for Worker installed-edge-worker.');
+    expect(JSON.parse(readFileSync(join(directory, 'invocation.json'), 'utf8')).args)
+      .toEqual(['deploy', '--config', 'wrangler.jsonc', '--dry-run', '--outdir', 'output']);
+  });
+
+  it.each([
+    { args: [], name: 'installed-edge-worker' },
+    { args: ['--env=staging'], name: 'environment-edge' },
+    { args: ['-e=staging', '--name=cli-edge'], name: 'cli-edge' },
+    { args: ['--env=staging', '--name=cli-edge', '--env-file=deployment.env'], name: 'builds-edge' },
+  ])('prints the same $name target that installed Wrangler selects for $args in a real dry run', ({ args, name }) => {
+    const { directory, configPath, installed } = createFixture();
+    writeFileSync(configPath, JSON.stringify({ ...installed, env: { staging: { ...installed, name: 'environment-edge' } } }));
+    mkdirSync(join(directory, 'src'));
+    writeFileSync(join(directory, 'src/index.ts'), 'export default { fetch() { return new Response("test"); } };');
+    writeFileSync(join(directory, 'deployment.env'), 'WRANGLER_CI_OVERRIDE_NAME=builds-edge\n');
+    const realWrangler = fileURLToPath(new URL('./bin/wrangler.js', import.meta.resolve('wrangler/package.json')));
+    writeFileSync(join(directory, 'node_modules/wrangler/bin/wrangler.js'), [
+      'const { spawnSync } = require("node:child_process");',
+      `const result = spawnSync(process.execPath, [${JSON.stringify(realWrangler)}, ...process.argv.slice(2)], { stdio: 'inherit' });`,
+      'process.exitCode = result.status ?? 1;',
+    ].join('\n'));
+    const outputPath = join(directory, 'wrangler-output.jsonl');
+    const result = executeCommand(directory, 'build', args, {
+      WRANGLER_OUTPUT_FILE_PATH: outputPath,
+    });
+    expect(result.status, result.stderr || result.error?.message).toBe(0);
+    const deployment = readFileSync(outputPath, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+      .find((event) => event.type === 'deploy');
+    expect(deployment.worker_name).toBe(name);
+    expect(result.stdout).toContain(`Validating deployment for Worker ${deployment.worker_name}.`);
+    expect(result.stdout).toContain('--dry-run: exiting now.');
+  }, 15_000);
+
+  it.each([
+    ['build', ['--no-dry-run']],
+    ['build', ['--dry-run=false']],
+    ['build', ['--', '--no-dry-run']],
+    ['deploy', ['--config', 'other.jsonc']],
+    ['deploy', ['--cwd', '..']],
+    ['deploy', ['--name', 'first', '--name', 'second']],
+  ] as const)('rejects ambiguous or unsafe %s arguments %j before calling Wrangler', (command, args) => {
+    const { directory } = createFixture();
+    const result = executeCommand(directory, command, [...args]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/dry run|root wrangler.jsonc|only once/u);
+    expect(existsSync(join(directory, 'invocation.json'))).toBe(false);
+  });
+
+  it('stops on invalid configuration before calling Wrangler', () => {
+    const { directory, configPath } = createFixture();
+    writeFileSync(configPath, '{"name":');
+    const result = executeCommand(directory, 'deploy');
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Expected');
+    expect(existsSync(join(directory, 'invocation.json'))).toBe(false);
   });
 });
 
