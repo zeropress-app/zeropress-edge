@@ -10,6 +10,7 @@
     "node": ">=22.22.0"
   },
   "scripts": {
+    "prepare": "husky",
     "build": "node scripts/build-deploy.mjs build",
     "deploy": "node scripts/build-deploy.mjs deploy",
     "format:wrangler": "node scripts/format-wrangler.mjs",
@@ -23,8 +24,11 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260908.1",
+    "@commitlint/cli": "21.2.2",
+    "@commitlint/config-conventional": "21.2.2",
     "@types/node": "26.5.0",
     "esbuild": "0.28.2",
+    "husky": "9.1.7",
     "miniflare": "5.20260908.0-alpha",
     "typescript": "7.0.2",
     "vitest": "5.0.0",
