@@ -1,0 +1,53 @@
+name: Move latest tag
+run-name: Move latest to ${{ inputs.target }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Existing vMAJOR.MINOR.PATCH tag, e.g. v0.7.2"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: move-latest-tag
+  cancel-in-progress: false
+
+jobs:
+  move-latest-tag:
+    name: Move latest tag
+    if: github.repository == 'zeropress-app/zeropress-edge'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Move tag
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+
+          VERSION_PATTERN='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          if [[ ! "$TARGET" =~ $VERSION_PATTERN ]]; then
+            echo "::error::Target must be a version tag such as v0.7.2."
+            exit 1
+          fi
+
+          git fetch --tags --force origin
+
+          if ! TARGET_COMMIT="$(git rev-parse --verify --quiet "refs/tags/${TARGET}^{commit}")"; then
+            echo "::error::Version tag not found or does not resolve to a commit: ${TARGET}"
+            exit 1
+          fi
+
+          echo "Moving latest to ${TARGET_COMMIT} (${TARGET})"
+          git tag -f latest "$TARGET_COMMIT"
+          git push --force origin refs/tags/latest:refs/tags/latest

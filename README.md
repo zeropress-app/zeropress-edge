@@ -1,5 +1,7 @@
 # ZeroPress Edge
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/zeropress-app/zeropress-edge/tree/latest)
+
 ZeroPress Edge provides public APIs for ZeroPress static sites. It runs as a
 Cloudflare Worker; ZeroPress Studio manages its data, settings, moderation,
 and mail delivery.
