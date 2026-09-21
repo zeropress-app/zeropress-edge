@@ -84,6 +84,12 @@ to LF, removes C0/C1 controls except LF/tab, converts tabs to spaces, trims the
 content and whitespace around line breaks, and limits consecutive breaks to two.
 The normalized result must contain 1–5,000 UTF-16 code units. Render it as text.
 
+Imported WordPress HTML is converted to plain text, with character entities
+decoded once and paragraph/list breaks preserved. Comments, scripts, styles,
+and template contents are omitted. Text such as `&lt;code&gt;` becomes literal
+`<code>` text; `content_text` is not HTML-safe markup. Use `textContent` or your
+framework's escaped text rendering.
+
 ## Create a comment
 
 `POST /api/posts/<public_post_id>/comments` accepts a JSON body up to `64 KiB`.

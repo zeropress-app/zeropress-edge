@@ -79,6 +79,30 @@ describe('built Edge Worker with disposable local D1, KV and Queue', () => {
       .toEqual({ content: '© 😊 日本語' });
   }, 30_000);
 
+  it('returns imported markup as JSON text with entities decoded once, including cache hits', async () => {
+    runtime = await createLocalWorker();
+    const content = '<p><span title="1 > 0">Visible</span><br />\n&amp;lt;b&amp;gt;literal&amp;lt;/b&amp;gt;</p>'
+      + '<script>hidden()</script><p>&lt;img src=x onerror=example&gt;</p>';
+    await runtime.env.EDGE_DB.prepare(`INSERT INTO comments
+      (id, public_id, target_id, author_name, author_email, content, status, imported, created_at, updated_at)
+      VALUES (?, 501, 1, ?, ?, ?, 'approved', 1, ?, ?)`)
+      .bind('e'.repeat(32), 'Imported', 'reader@example.com', content, fixtureNow, fixtureNow).run();
+    const token = await commentRequestToken();
+    const base = '/api/posts/101/comments';
+    const challenge = await proof(runtime, `${base}/challenge/read?comment_request_token=${token}`);
+    const url = `${base}?comment_request_token=${token}&comment_challenge_token=${challenge.token}&comment_challenge_solution=${challenge.solution}`;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await runtime.fetch(url);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Content-Type')).toBe('application/json; charset=UTF-8');
+      const body = await response.json() as { data: { items: { content_text: string }[] } };
+      expect(body.data.items.map((item) => item.content_text))
+        .toEqual(['Visible\n&lt;b&gt;literal&lt;/b&gt;\n\n<img src=x onerror=example>']);
+    }
+    expect(await runtime.env.EDGE_DB.prepare('SELECT content FROM comments WHERE public_id = 501').first())
+      .toEqual({ content });
+  }, 30_000);
+
   it('limits auth discovery separately from comment reads and by client IP', async () => {
     runtime = await createLocalWorker({ rateLimits: { COMMENT_READ_RATE_LIMITER: 1 } });
     const limiter = runtime.env.COMMENT_READ_RATE_LIMITER!;

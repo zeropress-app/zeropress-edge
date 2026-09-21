@@ -1,3 +1,4 @@
+import { defaultTreeAdapter, parseFragment, type DefaultTreeAdapterMap } from 'parse5';
 import { formatDateToUtcSecondIso } from '../time';
 import type { CommentData, CommentListItemData } from './types';
 
@@ -42,43 +43,45 @@ function formatCommentBase(comment: CommentData) {
   };
 }
 
-function decodeHtmlEntities(value: string): string {
-  return String(value || '')
-    .replace(/&#(\d+);/g, (_match, code) => {
-      const parsed = Number.parseInt(code, 10);
-      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 0x10ffff
-        ? String.fromCodePoint(parsed)
-        : '';
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => {
-      const parsed = Number.parseInt(code, 16);
-      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 0x10ffff
-        ? String.fromCodePoint(parsed)
-        : '';
-    })
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/gi, "'");
-}
-
 function formatNativeCommentText(value: string): string {
   return String(value || '').replace(/\r\n?/g, '\n').trim();
 }
 
 function formatImportedCommentText(value: string): string {
-  const normalizedValue = String(value || '')
-    .replace(/\r\n?/g, '\n')
-    .replace(/<br\s*\/?>[ \t]*\n?/gi, '\n')
-    .replace(/<\/p\s*>/gi, '\n\n')
-    .replace(/<\/div\s*>/gi, '\n\n')
-    .replace(/<\/li\s*>/gi, '\n')
-    .replace(/<[^>]*>/g, '');
+  const fragment = parseFragment(String(value || ''));
+  const pending: (DefaultTreeAdapterMap['childNode'] | string)[] = [...fragment.childNodes].reverse();
+  const parts: string[] = [];
+  let afterBr = false;
 
-  return decodeHtmlEntities(normalizedValue)
+  // Parsing decodes entities once. Extracted text must still be rendered as text, not HTML.
+  while (pending.length > 0) {
+    const node = pending.pop()!;
+    if (typeof node === 'string') {
+      parts.push(node);
+      afterBr = false;
+      continue;
+    }
+    if (defaultTreeAdapter.isTextNode(node)) {
+      parts.push(afterBr ? node.value.replace(/^[ \t]*\n?/, '') : node.value);
+      afterBr = false;
+      continue;
+    }
+    if (!defaultTreeAdapter.isElementNode(node)) continue;
+    if (node.tagName === 'script' || node.tagName === 'style' || node.tagName === 'template') continue;
+    if (node.tagName === 'br') {
+      parts.push('\n');
+      afterBr = true;
+      continue;
+    }
+    if (node.tagName === 'p' || node.tagName === 'div') pending.push('\n\n');
+    else if (node.tagName === 'li') pending.push('\n');
+    for (let index = node.childNodes.length - 1; index >= 0; index--) {
+      pending.push(node.childNodes[index]);
+    }
+  }
+
+  return parts.join('')
+    .replace(/\u00a0/g, ' ')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n[ \t]+/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
