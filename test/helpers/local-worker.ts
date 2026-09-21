@@ -104,14 +104,14 @@ export async function createLocalWorker(options: {
       workers: [
         {
           config: {
-            name: 'edge-test', type: 'worker', compatibilityDate,
+            name: 'edge-test', compatibilityDate,
             manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: await bundle() } } },
             env: bindings,
           }, dev,
         },
         {
           config: {
-            name: 'mail-capture', type: 'worker', compatibilityDate,
+            name: 'mail-capture', compatibilityDate,
             manifest: { mainModule: 'capture.js', modules: { 'capture.js': { type: 'esm', contents: queueCaptureScript } } },
             triggers: [{ type: 'queue', name: 'test-edge-mail', maxBatchSize: 1, maxBatchTimeout: 0 }],
           }, dev,
