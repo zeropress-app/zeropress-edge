@@ -1,7 +1,7 @@
 {
   "name": "@zeropress/edge",
   "description": "ZeroPress public Edge API for comments and newsletter integrations",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
