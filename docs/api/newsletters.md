@@ -37,8 +37,9 @@ but global maintenance still blocks it.
 }
 ```
 
-The seed creates an active email-only `default` newsletter. `fields` stays empty
-until Studio adds definitions. Metadata follows the shared [caching rules](common.md#caching).
+The seed creates an archived, email-only `default` newsletter. Activate it in
+Studio before accepting subscriptions. `fields` stays empty until Studio adds
+definitions. Metadata follows the shared [caching rules](common.md#caching).
 
 ## Subscribe
 

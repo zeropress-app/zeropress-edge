@@ -18,7 +18,7 @@
     {
       "id": "edge_install_seed_v1",
       "file": "install/002_edge_seed.sql",
-      "sha256": "364c21ac384a9bc955599e63fbf87d6b164bf4b9cde5ce8e80da24fb60934bd2"
+      "sha256": "d0d750e885e493c69cb465fd043ca0e2604911cee337d5286676ce49141553c4"
     }
   ],
   "uninstall_artifact": {

@@ -103,7 +103,7 @@ is ready. Configure the selected features:
 | Feature | Setup |
 | --- | --- |
 | Comments | Save the API base as `https://edge.example/api`, keep the site comment policy enabled, and choose moderation/threading settings. Saving initializes a missing request-signing keyset. Publish a Post/Page with comments allowed and wait for Edge target synchronization. |
-| Newsletter | Configure the mail provider, confirmation delivery, and Queue consumer. The seed supplies an active email-only `default` newsletter. |
+| Newsletter | Activate the seeded `default` newsletter in Studio and configure the mail provider, confirmation delivery, and Queue consumer. |
 | Forms | Create an active Form with the frontend's fields. The seed creates no contact form. For notifications, choose a recipient and complete mail/queue setup. |
 
 The Comments API base includes `/api`. Check request-security status in Comments

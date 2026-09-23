@@ -20,7 +20,7 @@ WHERE NOT EXISTS (
 );
 
 INSERT INTO newsletter_lists (slug, title, status)
-SELECT 'default', 'Newsletter', 'active'
+SELECT 'default', 'Newsletter', 'archived'
 WHERE NOT EXISTS (
   SELECT 1 FROM newsletter_lists WHERE slug = 'default'
 );

@@ -22,6 +22,7 @@ export async function seedPublicFixtures(db: D1Database) {
       (id, target_type, public_id, status, allow_comments, request_token_nonce, comments_cache_revision)
       VALUES (1, 'post', 101, 'published', 1, 'test-nonce', 'test-revision')`),
     db.prepare(`UPDATE edge_mail_settings SET newsletter_confirmation_enabled = 1 WHERE id = 1`),
+    db.prepare(`UPDATE newsletter_lists SET status = 'active' WHERE slug = 'default'`),
     db.prepare(`INSERT INTO forms (id, slug, title, status, notification_recipient_user_id)
       VALUES (?, 'contact', 'Contact', 'active', ?)`)
       .bind(fixtureIds.form, fixtureIds.recipient),
