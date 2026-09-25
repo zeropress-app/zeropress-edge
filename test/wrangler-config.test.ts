@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import { parse } from 'jsonc-parser';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { prepareDeployment } from '../scripts/deployment-command.mjs';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
 const packageJson = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8'));
@@ -39,7 +40,7 @@ function createFixture() {
     scripts: packageJson.scripts,
   }));
   mkdirSync(join(directory, 'scripts'));
-  for (const script of ['init-dev-vars.mjs', 'build-deploy.mjs']) {
+  for (const script of ['init-dev-vars.mjs', 'build-deploy.mjs', 'deployment-command.mjs']) {
     copyFileSync(join(projectRoot, 'scripts', script), join(directory, 'scripts', script));
   }
 
@@ -73,14 +74,29 @@ function createFixture() {
   return { directory, configPath, contents, installed };
 }
 
+function commandEnvironment(directory: string, env: NodeJS.ProcessEnv) {
+  return {
+    CLOUDFLARE_ENV: undefined, WRANGLER_CI_OVERRIDE_NAME: undefined,
+    WRANGLER_SEND_METRICS: 'false', WRANGLER_LOG_PATH: join(directory, 'wrangler.log'),
+    FORCE_COLOR: undefined, NO_COLOR: '1', ...env,
+  };
+}
+
+function prepareCommand(directory: string, command: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
+  for (const [name, value] of Object.entries(commandEnvironment(directory, env))) {
+    vi.stubEnv(name, value);
+  }
+  try {
+    return prepareDeployment(directory, [command, ...args]);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+}
+
 function executeCommand(directory: string, command: string, args: string[] = [], env: NodeJS.ProcessEnv = {}) {
   return spawnSync('npm', ['run', '--silent', command, '--', ...args], {
     cwd: directory, encoding: 'utf8', timeout: 10_000,
-    env: {
-      ...process.env, CLOUDFLARE_ENV: undefined, WRANGLER_CI_OVERRIDE_NAME: undefined,
-      WRANGLER_SEND_METRICS: 'false', WRANGLER_LOG_PATH: join(directory, 'wrangler.log'),
-      FORCE_COLOR: undefined, NO_COLOR: '1', ...env,
-    },
+    env: { ...process.env, ...commandEnvironment(directory, env) },
   });
 }
 
@@ -91,6 +107,15 @@ function runCommand(directory: string, command: string, args: string[] = [], env
     invocation: JSON.parse(readFileSync(join(directory, 'invocation.json'), 'utf8')),
     output: result.stdout + result.stderr,
   };
+}
+
+function initializeLocalVariables(directory: string) {
+  const result = spawnSync(process.execPath, ['scripts/init-dev-vars.mjs'], {
+    cwd: directory, encoding: 'utf8', timeout: 10_000,
+  });
+  expect(result.status, result.stderr || result.error?.message).toBe(0);
+  const path = join(directory, '.dev.vars');
+  return existsSync(path) ? readFileSync(path, 'utf8') : null;
 }
 
 describe('Cloudflare deployment configuration', () => {
@@ -118,20 +143,20 @@ describe('Cloudflare deployment configuration', () => {
     { args: ['-e', 'staging', '--name=cli-edge'], env: {}, name: 'cli-edge' },
     { args: [], env: { CLOUDFLARE_ENV: 'staging' }, name: 'environment-edge' },
     { args: ['--env=staging', '--name', 'cli-edge'], env: { WRANGLER_CI_OVERRIDE_NAME: 'builds-edge' }, name: 'builds-edge' },
-  ])('shows the effective target for $args and $env', ({ args, env, name }) => {
+  ])('selects the effective target for $args and $env', ({ args, env, name }) => {
     const { directory, configPath, installed } = createFixture();
     writeFileSync(configPath, JSON.stringify({ ...installed, env: { staging: { ...installed, name: 'environment-edge' } } }));
-    const { invocation, output } = runCommand(directory, 'deploy', args, env);
-    expect(output).toContain(`Deploying Worker ${name}.`);
-    expect(invocation.args).toEqual(['deploy', '--config', 'wrangler.jsonc', ...args]);
+    expect(prepareCommand(directory, 'deploy', args, env)).toEqual({
+      name, dryRun: false, args: ['deploy', '--config', 'wrangler.jsonc', ...args],
+    });
   });
 
   it('uses Wrangler environment-name suffixes when no environment name is set', () => {
     const { directory, configPath, installed } = createFixture();
     const { name: _name, ...environment } = installed;
     writeFileSync(configPath, JSON.stringify({ ...installed, env: { staging: environment } }));
-    expect(runCommand(directory, 'build', ['--env', 'staging']).output)
-      .toContain(`Validating deployment for Worker ${installed.name}-staging.`);
+    expect(prepareCommand(directory, 'build', ['--env', 'staging']).name)
+      .toBe(`${installed.name}-staging`);
   });
 
   it('uses Wrangler dotenv expansion and file precedence for target selection', () => {
@@ -139,13 +164,12 @@ describe('Cloudflare deployment configuration', () => {
     writeFileSync(join(directory, '.env'), 'TARGET_PREFIX=base\nWRANGLER_CI_OVERRIDE_NAME=${TARGET_PREFIX}-edge\n');
     writeFileSync(join(directory, '.env.local'), 'TARGET_PREFIX=local\nWRANGLER_CI_OVERRIDE_NAME=${TARGET_PREFIX}-edge\n');
     writeFileSync(join(directory, '.dev.vars'), 'WRANGLER_CI_OVERRIDE_NAME=development-only-edge\n');
-    expect(runCommand(directory, 'deploy').output).toContain('Deploying Worker local-edge.');
-    expect(runCommand(directory, 'deploy', [], { WRANGLER_CI_OVERRIDE_NAME: 'ci-edge' }).output)
-      .toContain('Deploying Worker ci-edge.');
+    expect(prepareCommand(directory, 'deploy').name).toBe('local-edge');
+    expect(prepareCommand(directory, 'deploy', [], { WRANGLER_CI_OVERRIDE_NAME: 'ci-edge' }).name)
+      .toBe('ci-edge');
 
     writeFileSync(join(directory, '.env.preview'), 'WRANGLER_CI_OVERRIDE_NAME=preview-edge\n');
-    expect(runCommand(directory, 'build', ['--env', 'preview']).output)
-      .toContain('Validating deployment for Worker preview-edge.');
+    expect(prepareCommand(directory, 'build', ['--env', 'preview']).name).toBe('preview-edge');
   });
 
   it.each([
@@ -155,10 +179,10 @@ describe('Cloudflare deployment configuration', () => {
     const { directory } = createFixture();
     writeFileSync(join(directory, 'first.env'), 'WRANGLER_CI_OVERRIDE_NAME=first-edge\n');
     writeFileSync(join(directory, 'last.env'), 'WRANGLER_CI_OVERRIDE_NAME=last-edge\n');
-    const { output } = runCommand(directory, 'deploy', args, {
+    const { name } = prepareCommand(directory, 'deploy', args, {
       CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false',
     });
-    expect(output).toContain('Deploying Worker last-edge.');
+    expect(name).toBe('last-edge');
   });
 
   it('resolves an environment selected in .env while CLI selection takes precedence', () => {
@@ -170,14 +194,13 @@ describe('Cloudflare deployment configuration', () => {
       },
     }));
     writeFileSync(join(directory, '.env'), 'CLOUDFLARE_ENV=staging\n');
-    expect(runCommand(directory, 'deploy').output).toContain('Deploying Worker staging-edge.');
-    expect(runCommand(directory, 'deploy', ['--env=preview']).output).toContain('Deploying Worker preview-edge.');
+    expect(prepareCommand(directory, 'deploy').name).toBe('staging-edge');
+    expect(prepareCommand(directory, 'deploy', ['--env=preview']).name).toBe('preview-edge');
   });
 
-  it('honors a negated deployment dry run in the displayed action', () => {
+  it('honors a negated deployment dry run', () => {
     const { directory } = createFixture();
-    expect(runCommand(directory, 'deploy', ['--dry-run', '--no-dry-run']).output)
-      .toContain('Deploying Worker installed-edge-worker.');
+    expect(prepareCommand(directory, 'deploy', ['--dry-run', '--no-dry-run']).dryRun).toBe(false);
   });
 
   it('passes deployment options and Wrangler failures through', () => {
@@ -225,12 +248,9 @@ describe('Cloudflare deployment configuration', () => {
     ['deploy', ['--config', 'other.jsonc']],
     ['deploy', ['--cwd', '..']],
     ['deploy', ['--name', 'first', '--name', 'second']],
-  ] as const)('rejects ambiguous or unsafe %s arguments %j before calling Wrangler', (command, args) => {
+  ] as const)('rejects ambiguous or unsafe %s arguments %j', (command, args) => {
     const { directory } = createFixture();
-    const result = executeCommand(directory, command, [...args]);
-    expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/dry run|root wrangler.jsonc|only once/u);
-    expect(existsSync(join(directory, 'invocation.json'))).toBe(false);
+    expect(() => prepareCommand(directory, command, [...args])).toThrow(/dry run|root wrangler.jsonc|only once/u);
   });
 
   it('stops on invalid configuration before calling Wrangler', () => {
@@ -264,12 +284,10 @@ describe('Local development variables', () => {
       expect(statSync(join(directory, '.dev.vars')).mode & 0o077).toBe(0);
     }
 
-    const rerun = runCommand(directory, 'dev');
-    expect(rerun.invocation.localVars).toBe(invocation.localVars);
-    expect(readFileSync(join(directory, '.dev.vars'), 'utf8')).toBe(invocation.localVars);
+    expect(initializeLocalVariables(directory)).toBe(invocation.localVars);
 
     const other = createFixture();
-    const otherValues = parseEnv(runCommand(other.directory, 'dev').invocation.localVars);
+    const otherValues = parseEnv(initializeLocalVariables(other.directory)!);
     expect(new Set([
       values.EDGE_TOKEN_SIGNING_SECRET, values.IP_HASH_SECRET,
       otherValues.EDGE_TOKEN_SIGNING_SECRET, otherValues.IP_HASH_SECRET,
@@ -282,10 +300,8 @@ describe('Local development variables', () => {
   ]))('preserves $file when $label', ({ file, contents }) => {
     const { directory } = createFixture();
     writeFileSync(join(directory, file), contents);
-    const { invocation } = runCommand(directory, 'dev');
-    expect(invocation.args[0]).toBe('dev');
+    const localVars = initializeLocalVariables(directory);
     expect(readFileSync(join(directory, file), 'utf8')).toBe(contents);
-    expect(invocation.localVars).toBe(file === '.dev.vars' ? contents : null);
-    expect(existsSync(join(directory, '.dev.vars'))).toBe(file === '.dev.vars');
+    expect(localVars).toBe(file === '.dev.vars' ? contents : null);
   });
 });

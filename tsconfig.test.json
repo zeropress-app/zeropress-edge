@@ -1,6 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "allowJs": true,
     "types": ["@cloudflare/workers-types", "node"]
   },
   "include": ["test/**/*.ts"]
