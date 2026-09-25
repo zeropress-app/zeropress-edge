@@ -47,6 +47,11 @@ POST /api/forms/<slug>/submissions
 Studio permits at most 50 fields per form. Metadata follows the shared
 [caching rules](common.md#caching).
 
+Load this endpoint before enabling the form. Keep submission disabled until
+metadata loads successfully, and display a short unavailable message with a
+retry action on failure. A missing or inactive form returns `404`. The submission
+endpoint checks activation again if the form changes after the page loads.
+
 ## Submit a form
 
 `POST /api/forms/<slug>/submissions` accepts JSON up to `256 KiB`. For the

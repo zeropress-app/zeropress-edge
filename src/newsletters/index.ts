@@ -124,9 +124,10 @@ export async function handleNewsletterRequest(request: Request, env: Env, slugSe
     if (!newsletter) {
       return errorResponse(request, env, 'NEWSLETTER_NOT_FOUND', 'Newsletter was not found.', 404, [], cors);
     }
+    const acceptingSubscriptions = await getNewsletterEmailAvailability(env) === null;
     const cachedPayload = await getNewsletterInfoCache(env, slug);
     if (cachedPayload) {
-      return jsonResponse({ item: cachedPayload }, 200, request, env, cors);
+      return jsonResponse({ item: { ...cachedPayload, accepting_subscriptions: acceptingSubscriptions } }, 200, request, env, cors);
     }
 
     const fields = await getActiveNewsletterFields(env, newsletter.id);
@@ -135,7 +136,7 @@ export async function handleNewsletterRequest(request: Request, env: Env, slugSe
       fields: fields.map(toPublicNewsletterField),
     };
     await putNewsletterInfoCache(env, slug, payload);
-    return jsonResponse({ item: payload }, 200, request, env, cors);
+    return jsonResponse({ item: { ...payload, accepting_subscriptions: acceptingSubscriptions } }, 200, request, env, cors);
   } catch (error) {
     rethrowEdgeDatabaseLifecycleQueryFailure(error);
     logError('Newsletter read failed', { errorMessage: getLogErrorMessage(error) });
@@ -331,8 +332,8 @@ export async function handleNewsletterSubscriptionRequest(
       return errorResponse(request, env, 'NEWSLETTER_SUPPRESSED', 'This email address cannot subscribe.', 403, [], cors);
     }
 
-    const mailSettings = await getEdgeMailSettings(env);
-    if (!mailSettings.newsletterConfirmationEnabled) {
+    const emailAvailability = await getNewsletterEmailAvailability(env);
+    if (emailAvailability === 'confirmation_disabled') {
       logWarn('Newsletter confirmation mail is disabled in edge_mail_settings', {
         code: 'NEWSLETTER_EMAIL_NOT_AVAILABLE',
         setting: 'edge_mail_settings.newsletter_confirmation_enabled',
@@ -350,7 +351,7 @@ export async function handleNewsletterSubscriptionRequest(
       );
     }
 
-    if (!env.MAIL_QUEUE) {
+    if (emailAvailability === 'queue_missing') {
       logWarn('Newsletter confirmation mail queue binding is missing', {
         code: 'NEWSLETTER_EMAIL_NOT_AVAILABLE',
         binding: 'MAIL_QUEUE',
@@ -758,6 +759,12 @@ export async function handleNewsletterUnsubscribeRequest(
     });
     return errorResponse(request, env, 'INTERNAL_ERROR', 'Internal Server Error', 500, [], cors);
   }
+}
+
+async function getNewsletterEmailAvailability(env: Env): Promise<'confirmation_disabled' | 'queue_missing' | null> {
+  const mailSettings = await getEdgeMailSettings(env);
+  if (!mailSettings.newsletterConfirmationEnabled) return 'confirmation_disabled';
+  return env.MAIL_QUEUE ? null : 'queue_missing';
 }
 
 function handleOptionsRequest(cors: ReturnType<typeof resolveCorsContext>): Response {

@@ -132,6 +132,10 @@ Supplying fields from the other mode returns `422 VALIDATION_ERROR`. Comment
 writes also require their target request token, regardless of verification mode
 or visitor authentication. Newsletter email confirmation uses its own token.
 
+Form and Newsletter metadata reads do not require PoW or Turnstile. They use
+the feature gates, CORS policy, and optional read rate limiters. Obtain and solve
+write verification only when the visitor submits, after checking availability.
+
 ## Rate limits
 
 Optional feature limiters return `429 RATE_LIMITED` when a quota is exceeded and
@@ -168,6 +172,10 @@ for 300 seconds in `EDGE_KV`. D1 remains authoritative. Missing or failing KV
 falls back to D1 for those reads; failed cache updates are skipped. Comment read
 limits still apply to cache hits. Missing KV also weakens the PoW replay guard
 described above.
+
+Form and Newsletter activation is checked before cached metadata is returned.
+Newsletter signup availability is also refreshed on each read; it is not cached
+with the field definitions.
 
 ## Shared errors
 

@@ -92,6 +92,7 @@ describe('zeropress-edge newsletters API', () => {
 
     expect(response.status).toBe(200);
     expect(payload).toEqual({
+      accepting_subscriptions: true,
       newsletter: {
         slug: 'default',
         title: 'Newsletter',
@@ -132,6 +133,36 @@ describe('zeropress-edge newsletters API', () => {
     // payload can be trusted; the larger field query remains cached.
     expect(sqlCalls.filter((sql) => sql.includes('JOIN newsletter_lists AS l'))).toHaveLength(2);
     expect(sqlCalls.filter((sql) => sql.includes('FROM newsletter_fields'))).toHaveLength(1);
+  });
+
+  it.each([
+    { label: 'confirmation mail disabled', edgeMailSettings: { newsletter_confirmation_enabled: 0 } },
+    { label: 'queue missing', mailQueueBound: false },
+  ])('reports signup unavailable with $label while returning metadata', async (options) => {
+    const { env, mailQueue } = createNewsletterMockEnv(options);
+    const response = await worker.fetch(new Request('https://example.com/api/newsletters/default'), env);
+    expect(response.status).toBe(200);
+    expect(await readJson(response)).toMatchObject({
+      newsletter: { slug: 'default' }, fields: [], accepting_subscriptions: false,
+    });
+    expect(mailQueue.send).not.toHaveBeenCalled();
+  });
+
+  it('rechecks mail readiness and list activation while reusing cached fields', async () => {
+    const { env, edgeMailSettings, newsletter, sqlCalls } = createNewsletterMockEnv();
+    const read = () => worker.fetch(new Request('https://example.com/api/newsletters/default'), env);
+    expect((await readJson(await read())).accepting_subscriptions).toBe(true);
+    edgeMailSettings.newsletter_confirmation_enabled = 0;
+    expect((await readJson(await read())).accepting_subscriptions).toBe(false);
+    edgeMailSettings.newsletter_confirmation_enabled = 1;
+    expect((await readJson(await read())).accepting_subscriptions).toBe(true);
+    env.MAIL_QUEUE = undefined;
+    expect((await readJson(await read())).accepting_subscriptions).toBe(false);
+    expect(sqlCalls.filter((sql) => sql.includes('FROM newsletter_fields'))).toHaveLength(1);
+    newsletter!.status = 'archived';
+    const archivedResponse = await read();
+    expect(archivedResponse.status).toBe(404);
+    expect((await readJson(archivedResponse)).code).toBe('NEWSLETTER_NOT_FOUND');
   });
 
   it('applies the optional newsletter read rate limiter', async () => {
@@ -1910,6 +1941,8 @@ function createNewsletterMockEnv(options?: {
     subscribeRateLimiter,
     challengeRateLimiter,
     turnstileVerifyRateLimiter,
+    edgeMailSettings,
+    newsletter,
   };
 }
 

@@ -31,7 +31,8 @@ but global maintenance still blocks it.
         "title": "Newsletter",
         "description": null
       },
-      "fields": []
+      "fields": [],
+      "accepting_subscriptions": true
     }
   }
 }
@@ -40,6 +41,18 @@ but global maintenance still blocks it.
 The seed creates an archived, email-only `default` newsletter. Activate it in
 Studio before accepting subscriptions. `fields` stays empty until Studio adds
 definitions. Metadata follows the shared [caching rules](common.md#caching).
+
+`accepting_subscriptions` is false when confirmation email is disabled or
+`MAIL_QUEUE` is missing. This value is checked on every request, including
+metadata cache hits. It does not guarantee that a later submission or delivery
+will succeed. The POST endpoint checks these conditions again.
+
+Load this endpoint before enabling signup. Keep signup disabled while loading,
+if the check fails, or if `accepting_subscriptions` is false; show a short message
+and a retry action. Older Edge responses omit this field and only confirm list
+activation.
+Confirmation and unsubscribe links use their own token flows and must not
+depend on signup availability.
 
 ## Subscribe
 
